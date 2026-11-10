@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Manager</title>
+<style>
+  :root {
+    --win:#f0f0f0; --face:#f7f7f7; --text:#1b1b1b; --muted:#5c6470; --line:#c9cdd3; --line2:#e3e5e8;
+    --title1:#2b5797; --title2:#3e6fb6; --list:#fff; --sel:#cce8ff; --selline:#99d1ff; --hover:#e5f3ff;
+    --tool-hover:#dbeafb; --green:#2e9d3a; --red:#d23b2e; --blue:#2f6fde; --input:#fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --win:#202226; --face:#2a2d32; --text:#e8e8e8; --muted:#a2a9b4; --line:#3a3e45; --line2:#30333a;
+      --title1:#1d3b66; --title2:#28508a; --list:#1a1c20; --sel:#26496f; --selline:#3d6fa3; --hover:#243246;
+      --tool-hover:#2f3a48; --input:#16181b;
+    }
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; }
+  body { background:var(--win); color:var(--text); font:12px/1.35 "Segoe UI", Tahoma, system-ui, sans-serif; display:flex; flex-direction:column; overflow:hidden; user-select:none; }
+
+  .menubar { display:flex; background:var(--face); border-bottom:1px solid var(--line2); flex:none; position:relative; z-index:5; }
+  .menubar > div { position:relative; }
+  .menubar button.m { border:0; background:none; color:inherit; font:inherit; padding:4px 9px; }
+  .menubar button.m:hover, .menubar .open > button.m { background:var(--tool-hover); }
+  .dropdown, .ctx { display:none; position:absolute; left:0; top:100%; min-width:220px; background:var(--face); border:1px solid var(--line); box-shadow:2px 3px 8px rgb(0 0 0 / .2); padding:3px 0; z-index:20; }
+  .open > .dropdown { display:block; }
+  .dropdown button, .ctx button { display:flex; justify-content:space-between; gap:24px; width:100%; border:0; background:none; color:inherit; font:inherit; text-align:left; padding:4px 22px; }
+  .dropdown button:hover:not(:disabled), .ctx button:hover:not(:disabled) { background:var(--sel); }
+  .dropdown button:disabled, .ctx button:disabled { color:var(--muted); }
+  .dropdown hr, .ctx hr { border:0; border-top:1px solid var(--line2); margin:3px 2px; }
+  kbd { font:inherit; color:var(--muted); }
+  .ctx { position:fixed; }
+
+  .toolbar { display:flex; gap:2px; padding:4px 6px; background:linear-gradient(var(--face), var(--win)); border-bottom:1px solid var(--line); overflow-x:auto; flex:none; scrollbar-width:none; }
+  .toolbar::-webkit-scrollbar { display:none; }
+  .tb { flex:none; display:flex; flex-direction:column; align-items:center; gap:2px; width:70px; padding:4px 2px 3px; border:1px solid transparent; border-radius:3px; background:none; color:inherit; font:inherit; font-size:11px; }
+  .tb:hover:not(:disabled) { background:var(--tool-hover); border-color:var(--selline); }
+  .tb:disabled { opacity:.45; }
+  .tb svg { width:32px; height:32px; }
+  .tb span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .tb.sep { width:1px; padding:0; margin:4px 3px; background:var(--line); border:0; }
+
+  .searchbar { display:flex; align-items:center; gap:6px; padding:5px 8px; background:var(--face); border-bottom:1px solid var(--line); flex:none; }
+  .searchbar[hidden] { display:none; }
+  input[type=text], input[type=number] { height:23px; padding:2px 5px; border:1px solid var(--line); background:var(--input); color:var(--text); font:inherit; user-select:text; }
+  input[type=text]:focus, input[type=number]:focus { outline:none; border-color:var(--blue); }
+  .searchbar input { flex:1; min-width:80px; max-width:380px; }
+  .btn { height:23px; padding:0 12px; border:1px solid #adadad; background:linear-gradient(#fbfbfb, #e6e6e6); color:#1b1b1b; font:inherit; border-radius:2px; }
+  .btn:hover:not(:disabled) { border-color:#0078d7; background:linear-gradient(#eaf6fd, #d9f0fc); }
+  .btn:disabled { color:#999; }
+  .btn.def { border-color:#0078d7; }
+  .x { border:0; background:none; color:var(--muted); font-size:14px; width:22px; height:22px; margin-left:auto; }
+  .x:hover { background:#e81123; color:#fff; }
+
+  .main { flex:1; display:flex; min-height:0; }
+  .cats { width:190px; flex:none; background:var(--list); border-right:1px solid var(--line); overflow:auto; padding:4px 0; }
+  .cats .head { padding:2px 8px 4px; color:var(--muted); border-bottom:1px solid var(--line2); margin-bottom:3px; }
+  .cats ul { list-style:none; margin:0; padding:0; }
+  .cats li > div { display:flex; align-items:center; gap:5px; padding:2px 6px; white-space:nowrap; border:1px solid transparent; }
+  .cats li li > div { padding-left:24px; }
+  .cats li > div:hover { background:var(--hover); }
+  .cats li > div.on { background:var(--sel); border-color:var(--selline); }
+  .cats svg { width:16px; height:16px; flex:none; }
+  .cats .n { color:var(--muted); margin-left:auto; }
+
+  .listwrap { flex:1; overflow:auto; background:var(--list); }
+  table { border-collapse:collapse; width:100%; min-width:900px; table-layout:fixed; }
+  thead th { position:sticky; top:0; z-index:1; background:linear-gradient(var(--face), var(--win)); border-right:1px solid var(--line2); border-bottom:1px solid var(--line); font-weight:normal; text-align:left; padding:3px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  tbody td { padding:2px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border:1px solid transparent; border-width:1px 0; }
+  tbody tr:hover td { background:var(--hover); }
+  tbody tr.sel td { background:var(--sel); border-color:var(--selline); }
+  tbody tr.cur td:first-child { box-shadow:inset 2px 0 var(--blue); }
+  td.fn > div { display:flex; align-items:center; gap:5px; overflow:hidden; }
+  td.fn span { overflow:hidden; text-overflow:ellipsis; }
+  td.fn svg { width:16px; height:16px; flex:none; }
+  .st-complete { color:var(--green); }
+  .st-err { color:var(--red); }
+  .bar { display:inline-block; width:46px; height:8px; border:1px solid var(--line); vertical-align:middle; margin-right:5px; background:var(--list); }
+  .bar i { display:block; height:100%; background:var(--green); }
+  .empty { padding:40px 20px; text-align:center; color:var(--muted); }
+
+  .statusbar { display:flex; gap:16px; padding:3px 8px; border-top:1px solid var(--line); background:var(--face); color:var(--muted); flex:none; white-space:nowrap; overflow:hidden; }
+  .statusbar span:first-child { flex:1; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
+
+  dialog { padding:0; border:1px solid var(--title1); background:var(--win); color:var(--text); box-shadow:0 10px 30px rgb(0 0 0 / .35); width:min(480px, calc(100vw - 32px)); }
+  dialog::backdrop { background:rgb(0 0 0 / .2); }
+  .dtitle { display:flex; align-items:center; height:28px; padding-left:10px; background:linear-gradient(var(--title2), var(--title1)); color:#fff; }
+  .dtitle span { flex:1; }
+  .dtitle button { border:0; background:none; color:#fff; width:40px; height:28px; }
+  .dtitle button:hover { background:#e81123; }
+  .dbody { padding:12px 14px; }
+  .dbody label.row { display:block; margin:0 0 4px; }
+  .dbody input[type=text] { width:100%; }
+  fieldset { border:1px solid var(--line); margin:4px 0 10px; padding:6px 10px 8px; }
+  legend { padding:0 4px; }
+  .chk { display:flex; align-items:center; gap:6px; margin:5px 0; }
+  .err { color:var(--red); min-height:16px; margin:4px 0 6px; user-select:text; }
+  .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+  .actions .btn { min-width:75px; }
+  .msg { display:flex; gap:12px; align-items:flex-start; padding:16px; }
+  .msg svg { width:32px; height:32px; flex:none; }
+  .fline { display:flex; gap:6px; }
+  .fline input { flex:1; }
+  .qlist { max-height:300px; overflow:auto; border:1px solid var(--line); background:var(--list); margin:8px 0; }
+  .qlist button { display:flex; justify-content:space-between; width:100%; border:0; border-bottom:1px solid var(--line2); background:none; color:inherit; font:inherit; padding:7px 10px; text-align:left; }
+  .qlist button:hover { background:var(--sel); }
+  .qlist .s { color:var(--muted); }
+  .vtitle { font-weight:600; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .spinner { width:16px; height:16px; border:2px solid var(--line); border-top-color:var(--blue); border-radius:50%; display:inline-block; animation:spin .8s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  @media (max-width: 720px) { .cats { display:none; } .searchbar input { max-width:none; } }
+</style>
+</head>
+<body>
+  <nav class="menubar" id="menubar">
+    <div><button class="m">Görevler</button><div class="dropdown">
+      <button data-cmd="add">Yeni indirme ekle… <kbd>Ctrl+N</kbd></button><hr><button data-cmd="quit">Çıkış</button>
+    </div></div>
+    <div><button class="m">Dosya</button><div class="dropdown">
+      <button data-cmd="open">Aç</button><button data-cmd="openfolder">Klasörü aç</button><hr>
+      <button data-cmd="resume">Şimdi indir</button><button data-cmd="stop">İndirmeyi durdur</button><button data-cmd="delete">Kaldır <kbd>Del</kbd></button>
+    </div></div>
+    <div><button class="m">İndirmeler</button><div class="dropdown">
+      <button data-cmd="stopall">Tümünü durdur</button><button data-cmd="delcompleted">Tamamlananları sil</button><hr>
+      <button data-cmd="find">Bul <kbd>Ctrl+F</kbd></button><button data-cmd="findnext">Sonrakini bul <kbd>F3</kbd></button><button data-cmd="searchsettings">Arama ayarları…</button><hr>
+      <button data-cmd="options">Seçenekler…</button>
+    </div></div>
+    <div><button class="m">Görünüm</button><div class="dropdown">
+      <button data-cmd="togglecats">Kategorileri gizle/göster</button><button data-cmd="find">Arama çubuğunu göster</button>
+    </div></div>
+    <div><button class="m">Yardım</button><div class="dropdown"><button data-cmd="about">Hakkında</button></div></div>
+  </nav>
+
+  <div class="toolbar" id="toolbar"></div>
+
+  <form class="searchbar" id="bar" hidden>
+    <label for="q">Bul:</label>
+    <input type="text" id="q" autocomplete="off" spellcheck="false">
+    <button class="btn def" type="submit">Bul</button>
+    <button class="btn" type="button" data-cmd="searchsettings">Ayarlar...</button>
+    <button class="x" type="button" data-cmd="closebar" title="Arama çubuğunu kapat">&#x2715;</button>
+  </form>
+
+  <div class="main">
+    <aside class="cats" id="cats"><div class="head">Kategoriler</div><ul id="catTree"></ul></aside>
+    <div class="listwrap" id="listwrap">
+      <table>
+        <colgroup><col style="width:28%"><col style="width:8%"><col style="width:12%"><col style="width:9%"><col style="width:10%"><col style="width:12%"><col style="width:21%"></colgroup>
+        <thead><tr><th>Dosya Adı</th><th>Boyut</th><th>Durum</th><th>Kalan süre</th><th>Hız</th><th>Son deneme</th><th>Açıklama</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>Henüz indirme yok. Tarayıcıdan bir dosya indirin ya da <b>URL Ekle</b>'ye tıklayın.</div>
+    </div>
+  </div>
+
+  <div class="statusbar"><span id="status">Hazır</span><span id="speed"></span><span id="count"></span></div>
+
+  <div class="ctx" id="ctx">
+    <button data-cmd="open">Aç</button><button data-cmd="openfolder">Klasörü aç</button><hr>
+    <button data-cmd="resume">Devam et</button><button data-cmd="stop">Durdur</button><hr>
+    <button data-cmd="refreshurl">İndirme adresini yenile…</button><button data-cmd="copyurl">Adresi kopyala</button><button data-cmd="delete">Sil</button>
+  </div>
+
+  <!-- Add URL -->
+  <dialog id="addDlg"><form method="dialog" id="addForm">
+    <div class="dtitle"><span>Yeni indirme ekle</span><button value="cancel">&#x2715;</button></div>
+    <div class="dbody">
+      <label class="row" for="addUrl">Adres (URL):</label>
+      <input type="text" id="addUrl" spellcheck="false" placeholder="https://…">
+      <div class="err" id="addErr"></div>
+      <div class="actions"><button class="btn def" id="addOk" value="ok">Tamam</button><button class="btn" value="cancel">İptal</button></div>
+    </div>
+  </form></dialog>
+
+  <!-- Video quality -->
+  <dialog id="qDlg"><form method="dialog">
+    <div class="dtitle"><span>Bu videoyu indir</span><button value="cancel">&#x2715;</button></div>
+    <div class="dbody">
+      <div id="qBody"></div>
+      <div class="actions"><button class="btn" value="cancel">İptal</button></div>
+    </div>
+  </form></dialog>
+
+  <!-- Delete -->
+  <dialog id="delDlg"><form method="dialog">
+    <div class="dtitle"><span>Sil</span><button value="cancel">&#x2715;</button></div>
+    <div class="dbody">
+      <div id="delText"></div>
+      <label class="chk"><input type="checkbox" id="delFile"> Dosyayı diskten de sil</label>
+      <div class="actions"><button class="btn def" value="ok" id="delOk">Tamam</button><button class="btn" value="cancel">İptal</button></div>
+    </div>
+  </form></dialog>
+
+  <!-- Download file info (shown before a captured download starts) -->
+  <dialog id="askDlg"><form method="dialog">
+    <div class="dtitle"><span>Dosya indirme bilgisi</span><button type="button" data-ask="cancel">&#x2715;</button></div>
+    <div class="dbody">
+      <label class="row" for="askUrl">Adres (URL):</label>
+      <input type="text" id="askUrl" readonly spellcheck="false">
+      <label class="row" for="askName" style="margin-top:10px">Dosya adı:</label>
+      <input type="text" id="askName" spellcheck="false">
+      <label class="row" for="askFolder" style="margin-top:10px">Kayıt klasörü:</label>
+      <div class="fline"><input type="text" id="askFolder" spellcheck="false"><button class="btn" type="button" id="askBrowse">Gözat…</button></div>
+      <div style="margin-top:10px;color:var(--muted)" id="askInfo"></div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="askNever"> Bir daha sorma, doğrudan indir</label>
+      <div class="actions">
+        <button class="btn def" type="button" data-ask="start">İndirmeyi başlat</button>
+        <button class="btn" type="button" data-ask="later">Daha sonra</button>
+        <button class="btn" type="button" data-ask="cancel">İptal</button>
+      </div>
+    </div>
+  </form></dialog>
+
+  <!-- Options -->
+  <dialog id="optDlg"><form method="dialog">
+    <div class="dtitle"><span>Seçenekler</span><button value="cancel">&#x2715;</button></div>
+    <div class="dbody">
+      <label class="row" for="optFolder">Kayıt klasörü:</label>
+      <div class="fline"><input type="text" id="optFolder" spellcheck="false"><button class="btn" type="button" id="browse">Gözat…</button></div>
+      <label class="row" for="optConn" style="margin-top:10px">Bağlantı sayısı (parça):</label>
+      <input type="number" id="optConn" min="1" max="32" style="width:70px">
+      <label class="row" for="optActive" style="margin-top:10px">Aynı anda indirme sayısı (diğerleri sırada bekler):</label>
+      <input type="number" id="optActive" min="1" max="16" style="width:70px">
+      <label class="row" for="optLimit" style="margin-top:10px">Hız sınırı (KB/sn, 0 = sınırsız):</label>
+      <input type="number" id="optLimit" min="0" style="width:90px">
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="optAsk"> Tarayıcıdan yakalanan indirmeyi başlatmadan önce sor</label>
+      <div class="err" id="optErr"></div>
+      <div class="actions"><button class="btn def" value="ok" id="optOk">Tamam</button><button class="btn" value="cancel">İptal</button></div>
+    </div>
+  </form></dialog>
+
+  <!-- Search settings (IDM dialog 506) -->
+  <dialog id="settings"><form method="dialog" id="settingsForm">
+    <div class="dtitle"><span>Arama ayarları</span><button value="cancel">&#x2715;</button></div>
+    <div class="dbody">
+      <fieldset>
+        <legend>Şurada ara</legend>
+        <label class="chk"><input type="checkbox" name="fileName"> Dosya adı veya bir kısmı</label>
+        <label class="chk"><input type="checkbox" name="description"> Açıklama veya bir kısmı</label>
+        <label class="chk"><input type="checkbox" name="links"> Site adı / İndirme bağlantısı / Kaynak sayfa / Referer</label>
+      </fieldset>
+      <label class="chk"><input type="checkbox" name="matchCase"> Büyük/küçük harf duyarlı</label>
+      <label class="chk"><input type="checkbox" name="wholeString"> Yalnızca tam eşleşme</label>
+      <div class="err" id="settingsErr"></div>
+      <div class="actions"><button class="btn def" value="ok" id="settingsOk">Tamam</button><button class="btn" value="cancel">İptal</button></div>
+    </div>
+  </form></dialog>
+
+  <dialog id="msgbox"><form method="dialog">
+    <div class="dtitle"><span id="msgtitle">Download Manager</span><button value="ok">&#x2715;</button></div>
+    <div class="msg"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#2f6fde"/><rect x="14.5" y="13" width="3" height="11" fill="#fff"/><circle cx="16" cy="9" r="2" fill="#fff"/></svg><div id="msgtext" style="user-select:text"></div></div>
+    <div class="dbody" style="padding-top:0"><div class="actions"><button class="btn def" value="ok">Tamam</button></div></div>
+  </form></dialog>
+
+<script type="module">
+import { DEFAULT_SETTINGS, findDownloads, fromFlags, toFlags, validateSettings } from './search.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function api(path, body) {
+  const r = await fetch('/api/' + path, body === undefined ? {} : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+/* ---------- formatting ---------- */
+function fmtSize(b) {
+  if (!b) return '';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return (i ? b.toFixed(2) : b) + ' ' + u[i];
+}
+const fmtRate = (b) => (b ? fmtSize(b) + '/sn' : '');
+function fmtEta(s) {
+  if (s == null || !isFinite(s)) return '';
+  s = Math.round(s);
+  if (s >= 3600) return `${Math.floor(s / 3600)} sa ${Math.floor(s % 3600 / 60)} dk`;
+  if (s >= 60) return `${Math.floor(s / 60)} dk ${s % 60} sn`;
+  return `${s} sn`;
+}
+const fmtDate = (t) => new Date(t * 1000).toLocaleString('tr-TR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/* ---------- icons ---------- */
+const I = {
+  add: '<circle cx="16" cy="16" r="13" fill="#3fae49"/><path d="M16 9v14M9 16h14" stroke="#fff" stroke-width="3"/>',
+  resume: '<circle cx="16" cy="16" r="13" fill="#2f6fde"/><path d="M13 10l9 6-9 6z" fill="#fff"/>',
+  stop: '<circle cx="16" cy="16" r="13" fill="#d23b2e"/><rect x="11" y="11" width="10" height="10" fill="#fff"/>',
+  stopall: '<circle cx="13" cy="14" r="10" fill="#e06a5f"/><circle cx="19" cy="18" r="11" fill="#d23b2e"/><rect x="14.5" y="13.5" width="9" height="9" fill="#fff"/>',
+  del: '<path d="M9 10h14l-1.5 17h-11z" fill="#8a94a3"/><rect x="7" y="6" width="18" height="3" rx="1" fill="#5c6470"/><path d="M13 13v11M19 13v11" stroke="#fff" stroke-width="1.6"/>',
+  delc: '<path d="M9 10h14l-1.5 17h-11z" fill="#8a94a3"/><rect x="7" y="6" width="18" height="3" rx="1" fill="#5c6470"/><path d="M11.5 18l3.5 3.5 6-7" stroke="#3fae49" stroke-width="2.6" fill="none"/>',
+  opts: '<circle cx="16" cy="16" r="6" fill="none" stroke="#5c6470" stroke-width="5" stroke-dasharray="4 2.3"/><circle cx="16" cy="16" r="4" fill="#9aa3b0"/>',
+  folder32: '<path d="M3 7h10l3 3h13v17H3z" fill="#e8b84a"/><path d="M3 12h26v15H3z" fill="#f7d77e"/>',
+  find: '<circle cx="14" cy="14" r="8" fill="#e5f3ff" stroke="#2f6fde" stroke-width="3"/><path d="M20 20l7 7" stroke="#e19a1b" stroke-width="4" stroke-linecap="round"/>',
+  folder: '<path d="M1 4h5l1.5 1.5H15v8.5H1z" fill="#f2c55c"/><path d="M1 6.5h14V14H1z" fill="#f7d77e"/>',
+  folderOpen: '<path d="M1 4h5l1.5 1.5H15v8.5H1z" fill="#e8b84a"/><path d="M2.5 7.5H16L14 14H1z" fill="#f7d77e"/>',
+};
+const svg = (k, vb = 32) => `<svg viewBox="0 0 ${vb} ${vb}">${I[k]}</svg>`;
+const ft = { Compressed: ['#a26ac8', 'ZIP'], Documents: ['#2f6fde', 'DOC'], Music: ['#e0693b', '♪'], Programs: ['#5c6470', 'EXE'], Video: ['#d23b2e', '▶'], Other: ['#8a94a3', ''] };
+const fileIcon = (cat) => {
+  const [c, t] = ft[cat] || ft.Other;
+  return `<svg viewBox="0 0 16 16"><path d="M3 1h7l3 3v11H3z" fill="#fff" stroke="${c}"/><path d="M10 1v3h3" fill="none" stroke="${c}"/><rect x="3" y="9" width="10" height="5" fill="${c}"/><text x="8" y="13.2" font-size="4.2" text-anchor="middle" fill="#fff" font-family="Segoe UI,Arial" font-weight="700">${t}</text></svg>`;
+};
+
+/* ---------- state ---------- */
+let downloads = [];
+let selected = new Set(); // ids
+let hits = []; let cursor = -1;
+let category = 'all';
+const EXT = { Compressed: /\.(zip|rar|7z|gz|tar|xz)$/i, Documents: /\.(pdf|docx?|xlsx?|pptx?|txt|epub)$/i, Music: /\.(mp3|wav|flac|m4a|ogg|opus|aac)$/i, Programs: /\.(exe|msi|iso|dmg|apk)$/i, Video: /\.(mp4|mkv|avi|mov|webm|flv)$/i };
+const CATS = { Compressed: 'Sıkıştırılmış', Documents: 'Belgeler', Music: 'Müzik', Programs: 'Programlar', Video: 'Video' };
+const filters = {
+  all: () => true, unfinished: (d) => d.status !== 'complete', finished: (d) => d.status === 'complete',
+  ...Object.fromEntries(Object.keys(EXT).map((k) => [k, (d) => d.cat === k])),
+};
+const visible = () => downloads.filter(filters[category]);
+const sel = () => downloads.filter((d) => selected.has(d.id));
+
+/* ---------- toolbar ---------- */
+const tools = [['add', 'URL Ekle', 'add'], ['resume', 'Devam', 'resume'], ['stop', 'Durdur', 'stop'], ['stopall', 'Tümünü Durdur', 'stopall'], ['del', 'Sil', 'delete'], ['delc', 'Tamamlananları Sil', 'delcompleted'], 'sep', ['folder32', 'Klasörü Aç', 'openfolder'], ['opts', 'Seçenekler', 'options'], 'sep', ['find', 'Bul', 'find']];
+$('toolbar').innerHTML = tools.map((t) => t === 'sep' ? '<span class="tb sep"></span>'
+  : `<button class="tb" type="button" data-cmd="${t[2]}" title="${t[1]}">${svg(t[0])}<span>${t[1]}</span></button>`).join('');
+
+/* ---------- categories ---------- */
+let catSig = '';
+function renderCats() {
+  const counts = Object.keys(filters).map((k) => downloads.filter(filters[k]).length);
+  const sig = category + counts.join();
+  if (sig === catSig) return; catSig = sig;
+  const item = (key, label, open) => `<div data-cat="${key}" class="${category === key ? 'on' : ''}">${svg(open ? 'folderOpen' : 'folder', 16)}<span>${label}</span><span class="n">${downloads.filter(filters[key]).length}</span></div>`;
+  $('catTree').innerHTML = `<li>${item('all', 'Tüm İndirmeler', true)}<ul>${Object.keys(CATS).map((k) => `<li>${item(k, CATS[k])}</li>`).join('')}</ul></li>
+    <li>${item('unfinished', 'Bitmemiş')}</li><li>${item('finished', 'Bitmiş')}</li>`;
+}
+$('catTree').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-cat]'); if (!el) return;
+  category = el.dataset.cat; hits = []; cursor = -1; selected.clear(); renderCats(); render();
+});
+
+/* ---------- list ---------- */
+const STATUS = { confirm: 'Onay bekliyor', queued: 'Sırada', starting: 'Bağlanıyor…', paused: 'Duraklatıldı', merging: 'Birleştiriliyor…' };
+function statusCell(d) {
+  if (d.status === 'complete') return '<span class="st-complete">Tamamlandı</span>';
+  if (d.status === 'error') return `<span class="st-err" title="${esc(d.error)}">Hata</span>`;
+  const pct = d.size ? (d.downloaded / d.size) * 100 : 0;
+  if (d.status === 'downloading') return `<span class="bar"><i style="width:${pct.toFixed(1)}%"></i></span>${d.size ? pct.toFixed(1) + '%' : fmtSize(d.downloaded)}`;
+  return (d.size && d.status === 'paused' ? `<span class="bar"><i style="width:${pct.toFixed(1)}%"></i></span>` : '') + (STATUS[d.status] || d.status);
+}
+function render() {
+  const list = visible();
+  const curId = hits[cursor]?.id;
+  $('rows').innerHTML = list.map((d) => {
+    const cls = [selected.has(d.id) && 'sel', curId === d.id && 'cur'].filter(Boolean).join(' ');
+    return `<tr data-id="${d.id}" class="${cls}"><td class="fn"><div>${fileIcon(d.cat)}<span title="${esc(d.fileName)}">${esc(d.fileName || d.url)}</span></div></td><td>${fmtSize(d.size)}</td><td>${statusCell(d)}</td><td>${d.status === 'downloading' ? fmtEta(d.eta) : ''}</td><td>${d.status === 'downloading' ? fmtRate(d.speed) : ''}</td><td>${fmtDate(d.lastTry)}</td><td title="${esc(d.description)}">${esc(d.description || d.formatLabel)}</td></tr>`;
+  }).join('');
+  $('empty').hidden = list.length > 0;
+  $('count').textContent = `${list.length} öğe`;
+  const total = downloads.reduce((a, d) => a + (d.status === 'downloading' ? d.speed : 0), 0);
+  $('speed').textContent = total ? 'Toplam: ' + fmtRate(total) : '';
+  updateButtons();
+}
+function updateButtons() {
+  const s = sel();
+  const can = { resume: s.some((d) => d.status !== 'complete' && d.status !== 'downloading'), stop: s.some((d) => ['downloading', 'starting', 'queued', 'merging'].includes(d.status)), delete: s.length > 0, openfolder: s.length === 1, refreshurl: s.length === 1 && s[0].kind === 'http' && s[0].status !== 'complete', open: s.length === 1 && s[0].status === 'complete' };
+  document.querySelectorAll('[data-cmd]').forEach((b) => { if (b.dataset.cmd in can) b.disabled = !can[b.dataset.cmd]; });
+}
+
+async function refresh() {
+  try {
+    const { items } = await api('list');
+    downloads = items.map((d) => ({ ...d, cat: Object.keys(EXT).find((k) => EXT[k].test(d.fileName)) || 'Other' }));
+    const ids = new Set(downloads.map((d) => d.id));
+    for (const id of [...selected]) if (!ids.has(id)) selected.delete(id);
+    hits = hits.map((h) => downloads.find((d) => d.id === h.id)).filter(Boolean);
+    renderCats(); render();
+    askNext();
+  } catch { setStatus('Uygulamaya bağlanılamadı'); }
+}
+
+/* ---------- confirmation before a captured download ---------- */
+let asking = null; // id of the download the dialog is showing
+async function askNext() {
+  if (asking) return;
+  const d = downloads.find((x) => x.status === 'confirm');
+  if (!d) return;
+  asking = d.id;
+  const s = await api('settings').catch(() => ({ folder: '' }));
+  let host = ''; try { host = new URL(d.url).hostname; } catch {}
+  $('askUrl').value = d.url; $('askName').value = d.fileName; $('askFolder').value = d.folder || s.folder;
+  $('askInfo').textContent = [d.size ? 'Boyut: ' + fmtSize(d.size) : 'Boyut: bilinmiyor', host && 'Kaynak: ' + host].filter(Boolean).join('  ·  ');
+  $('askNever').checked = false;
+  $('askDlg').showModal(); $('askName').focus();
+}
+$('askBrowse').addEventListener('click', async () => {
+  const { folder } = await api('choosefolder', {}).catch(() => ({}));
+  if (folder) $('askFolder').value = folder;
+});
+async function answerAsk(action) {
+  const id = asking; if (!id) return;
+  try {
+    if (action === 'cancel') await api('remove', { ids: [id] });
+    else await api('confirm', { id, fileName: $('askName').value.trim(), folder: $('askFolder').value.trim(), start: action === 'start' });
+    if ($('askNever').checked) await api('settings', { askBefore: false });
+  } catch (e) { msg(e.message); }
+  $('askDlg').close(); asking = null; refresh();
+}
+$('askDlg').addEventListener('click', (e) => { const b = e.target.closest('[data-ask]'); if (b) answerAsk(b.dataset.ask); });
+$('askDlg').addEventListener('cancel', (e) => { e.preventDefault(); answerAsk('cancel'); }); // Esc
+setInterval(refresh, 700);
+
+$('rows').addEventListener('click', (e) => {
+  const tr = e.target.closest('tr'); if (!tr) return;
+  const id = tr.dataset.id;
+  if (e.ctrlKey) selected.has(id) ? selected.delete(id) : selected.add(id);
+  else if (e.shiftKey && selected.size) {
+    const ids = visible().map((d) => d.id); const a = ids.indexOf([...selected].pop()); const b = ids.indexOf(id);
+    ids.slice(Math.min(a, b), Math.max(a, b) + 1).forEach((x) => selected.add(x));
+  } else selected = new Set([id]);
+  render();
+  const d = downloads.find((x) => x.id === id);
+  setStatus(d.status === 'error' ? 'Hata: ' + d.error : d.url);
+});
+$('rows').addEventListener('dblclick', (e) => {
+  const tr = e.target.closest('tr'); if (!tr) return;
+  selected = new Set([tr.dataset.id]);
+  const d = downloads.find((x) => x.id === tr.dataset.id);
+  if (d.status === 'complete') commands.open(); else if (d.status !== 'downloading') commands.resume();
+});
+$('listwrap').addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const tr = e.target.closest('tr'); if (!tr) return;
+  if (!selected.has(tr.dataset.id)) { selected = new Set([tr.dataset.id]); render(); }
+  const c = $('ctx'); c.style.display = 'block';
+  c.style.left = Math.min(e.clientX, innerWidth - c.offsetWidth - 4) + 'px';
+  c.style.top = Math.min(e.clientY, innerHeight - c.offsetHeight - 4) + 'px';
+});
+const setStatus = (t) => { $('status').textContent = t; };
+function msg(text, title = 'Download Manager') { $('msgtitle').textContent = title; $('msgtext').textContent = text; $('msgbox').showModal(); }
+
+/* ---------- add / video quality ---------- */
+function openAdd(url = '') {
+  $('addUrl').value = url; $('addErr').textContent = '';
+  $('addDlg').showModal(); $('addUrl').focus(); $('addUrl').select();
+}
+$('addOk').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const url = $('addUrl').value.trim();
+  if (!/^https?:\/\//i.test(url)) { $('addErr').textContent = 'Geçerli bir http(s) adresi girin.'; return; }
+  try {
+    const { video } = await api('isvideo', { url });
+    $('addDlg').close();
+    if (video) return chooseQuality(url);
+    await api('add', { url }); refresh();
+  } catch (err) { $('addErr').textContent = err.message; }
+});
+async function chooseQuality(url) {
+  $('qBody').innerHTML = '<span class="spinner"></span>Video bilgileri alınıyor…';
+  $('qDlg').showModal();
+  try {
+    const info = await api('formats', { url });
+    $('qBody').innerHTML = `<div class="vtitle" title="${esc(info.title)}">${esc(info.title)}</div><div class="s" style="color:var(--muted)">Bir kalite seçin:</div>
+      <div class="qlist">${info.options.map((o, i) => `<button type="button" data-i="${i}"><span>${esc(o.label)}</span><span class="s">${o.size ? '~' + fmtSize(o.size) : ''}</span></button>`).join('')}</div>`;
+    $('qBody').querySelectorAll('[data-i]').forEach((b) => b.addEventListener('click', async () => {
+      const o = info.options[b.dataset.i];
+      $('qDlg').close();
+      try { await api('add', { url: info.webpage_url, title: info.title, description: o.label, format: o }); refresh(); } catch (err) { msg(err.message); }
+    }));
+  } catch (err) { $('qBody').innerHTML = `<div class="err">Video bilgisi alınamadı: ${esc(err.message)}</div>`; }
+}
+
+/* ---------- delete / options ---------- */
+$('delOk').addEventListener('click', async () => {
+  await api('remove', { ids: [...selected], deleteFile: $('delFile').checked }).catch((e) => msg(e.message));
+  selected.clear(); refresh();
+});
+async function openOptions() {
+  const s = await api('settings');
+  $('optFolder').value = s.folder; $('optConn').value = s.connections; $('optErr').textContent = '';
+  $('optActive').value = s.maxActive; $('optLimit').value = s.speedLimit; $('optAsk').checked = s.askBefore;
+  $('optDlg').showModal();
+}
+$('browse').addEventListener('click', async () => {
+  const { folder } = await api('choosefolder', {}).catch(() => ({}));
+  if (folder) $('optFolder').value = folder;
+});
+$('optOk').addEventListener('click', async (e) => {
+  e.preventDefault();
+  try {
+    const s = await api('settings', { folder: $('optFolder').value, connections: +$('optConn').value || 16, maxActive: +$('optActive').value || 4, speedLimit: Math.max(0, +$('optLimit').value || 0), askBefore: $('optAsk').checked });
+    if (s.folder !== $('optFolder').value) { $('optErr').textContent = 'Bu klasör bulunamadı.'; return; }
+    $('optDlg').close();
+  } catch (err) { $('optErr').textContent = err.message; }
+});
+
+/* ---------- search (IDM logic in search.js) ---------- */
+function loadSearch() {
+  try { const raw = JSON.parse(localStorage.getItem('search') || 'null'); if (raw) return fromFlags(raw.flags, raw.query); } catch {}
+  return { ...DEFAULT_SETTINGS };
+}
+function saveSearch(s) { try { localStorage.setItem('search', JSON.stringify({ query: s.query, flags: toFlags(s) })); } catch {} }
+let settings = loadSearch();
+$('q').value = settings.query;
+function runSearch() {
+  settings = { ...settings, query: $('q').value }; saveSearch(settings);
+  if (!settings.query) { hits = []; cursor = -1; selected.clear(); render(); setStatus('Hazır'); return; }
+  hits = findDownloads(visible(), settings);
+  selected = new Set(hits.map((d) => d.id)); cursor = hits.length ? 0 : -1;
+  render();
+  $('rows').querySelector('tr.cur')?.scrollIntoView({ block: 'nearest' });
+  if (!hits.length) { setStatus('Böyle bir dosya bulunamadı'); msg('Böyle bir dosya bulunamadı', 'Dosya bul'); return; }
+  setStatus(`${hits.length} dosya bulundu. Sonraki için F3.`);
+}
+function findNext() {
+  if (!hits.length) { if ($('q').value) runSearch(); else showBar(); return; }
+  if (cursor >= hits.length - 1) { msg('Arama tamamlandı', 'Dosya bul'); cursor = -1; render(); return; }
+  cursor += 1; render(); $('rows').querySelector('tr.cur')?.scrollIntoView({ block: 'nearest' });
+  setStatus(`${cursor + 1} / ${hits.length}: ${hits[cursor].fileName}`);
+}
+function showBar() { $('bar').hidden = false; $('q').focus(); $('q').select(); }
+$('bar').addEventListener('submit', (e) => { e.preventDefault(); runSearch(); });
+const form = $('settingsForm'); const KEYS = ['fileName', 'description', 'links', 'matchCase', 'wholeString'];
+function openSearchSettings() { for (const k of KEYS) form.elements[k].checked = settings[k]; $('settingsErr').textContent = ''; $('settings').showModal(); }
+$('settingsOk').addEventListener('click', (e) => {
+  const next = { ...settings }; for (const k of KEYS) next[k] = form.elements[k].checked;
+  if (validateSettings(next)) { e.preventDefault(); $('settingsErr').textContent = 'En az bir arama hedefi işaretli olmalı'; form.elements.fileName.checked = true; return; }
+  settings = next; saveSearch(settings); if ($('q').value) runSearch();
+});
+
+/* ---------- commands ---------- */
+const ids = () => [...selected];
+const commands = {
+  add: () => openAdd(),
+  resume: async () => { await api('resume', { ids: ids() }); refresh(); },
+  stop: async () => { await api('stop', { ids: ids() }); refresh(); },
+  stopall: async () => { await api('stopall', {}); refresh(); },
+  delete: () => { if (!selected.size) return; $('delText').textContent = `${selected.size} indirme listeden kaldırılsın mı?`; $('delFile').checked = false; $('delDlg').showModal(); },
+  delcompleted: async () => { await api('removecompleted', {}); refresh(); },
+  open: () => sel()[0] && api('open', { id: sel()[0].id }).catch((e) => msg(e.message)),
+  openfolder: () => sel()[0] && api('open', { id: sel()[0].id, folder: true }).catch((e) => msg(e.message)),
+  copyurl: () => sel()[0] && navigator.clipboard.writeText(sel()[0].url),
+  refreshurl: async () => {
+    const d = sel()[0]; if (!d) return;
+    try {
+      const { opened } = await api('refresh', { id: d.id });
+      msg(opened
+        ? 'Kaynak sayfa tarayıcıda açıldı. İndirmeyi orada yeniden başlatın; yeni adres yakalanınca bu indirme kaldığı yerden devam eder.'
+        : 'Bu indirmenin kaynak sayfası bilinmiyor. Yeni bağlantıyı tarayıcıdan indirin ya da URL Ekle ile yapıştırın; bu indirme kaldığı yerden devam eder.', 'İndirme adresini yenile');
+    } catch (e) { msg(e.message); }
+  },
+  options: openOptions,
+  find: showBar, findnext: findNext, searchsettings: openSearchSettings,
+  closebar: () => { $('bar').hidden = true; },
+  togglecats: () => { const c = $('cats'); c.style.display = c.style.display === 'none' ? '' : 'none'; },
+  about: () => msg('Download Manager 2.0\nDinamik parçalı indirme (32 bağlantıya kadar). Tarayıcı eklentisi indirmeleri ve sayfalardaki video/ses akışlarını yakalar.'),
+  quit: () => api('quit', {}),
+};
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#ctx')) $('ctx').style.display = 'none';
+  const top = e.target.closest('button.m');
+  const openMenu = document.querySelector('.menubar > div.open');
+  if (top) { const m = top.parentElement; if (openMenu && openMenu !== m) openMenu.classList.remove('open'); m.classList.toggle('open'); return; }
+  if (openMenu && !e.target.closest('.dropdown')) openMenu.classList.remove('open');
+  const c = e.target.closest('[data-cmd]');
+  if (c && !c.disabled) { openMenu?.classList.remove('open'); $('ctx').style.display = 'none'; commands[c.dataset.cmd](); }
+});
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]')) return;
+  const inField = e.target.matches('input');
+  if (e.ctrlKey && e.key.toLowerCase() === 'f') { e.preventDefault(); showBar(); }
+  else if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); openAdd(); }
+  else if (e.ctrlKey && e.key.toLowerCase() === 'a' && !inField) { e.preventDefault(); selected = new Set(visible().map((d) => d.id)); render(); }
+  else if (e.key === 'F3') { e.preventDefault(); findNext(); }
+  else if (e.key === 'Delete' && !inField) commands.delete();
+  else if (e.key === 'Escape' && e.target === $('q')) $('bar').hidden = true;
+});
+// Paste a link anywhere (Ctrl+V) to add it, like IDM's clipboard catch.
+document.addEventListener('paste', (e) => {
+  if (e.target.matches('input')) return;
+  const t = e.clipboardData.getData('text').trim();
+  if (/^https?:\/\//i.test(t)) openAdd(t);
+});
+document.addEventListener('contextmenu', (e) => { if (!e.target.closest('#listwrap') && !e.target.matches('input')) e.preventDefault(); });
+
+refresh();
+</script>
+</body>
+</html>

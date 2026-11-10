@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin:0; width:300px; font:13px/1.4 "Segoe UI", system-ui, sans-serif; color:#1b1b1b; background:#fff; }
+  header { display:flex; align-items:center; gap:8px; padding:10px 12px; background:linear-gradient(#3e6fb6,#2b5797); color:#fff; font-weight:600; }
+  header img { width:20px; height:20px; }
+  main { padding:12px; }
+  .row { display:flex; align-items:center; justify-content:space-between; margin:6px 0; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; background:#aaa; }
+  .on { background:#2e9d3a; } .off { background:#d23b2e; }
+  .hint { color:#5c6470; font-size:12px; margin-top:8px; }
+  button.wide { margin-top:10px; width:100%; height:26px; border:1px solid #adadad; background:linear-gradient(#fbfbfb,#e6e6e6); border-radius:3px; font:inherit; cursor:pointer; }
+  h2 { font-size:12px; margin:12px 0 4px; color:#5c6470; font-weight:600; }
+  .list { max-height:220px; overflow:auto; border:1px solid #dde1e8; border-radius:3px; }
+  .list:empty { display:none; }
+  .list button { display:flex; justify-content:space-between; gap:8px; width:100%; padding:6px 8px; border:0; border-bottom:1px solid #eef0f3; background:none; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+  .list button:hover { background:#e5f3ff; }
+  .list button span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .list .s { color:#6b7385; flex:none; }
+  @media (prefers-color-scheme: dark) {
+    body { background:#202226; color:#e8e8e8; } .hint, h2, .list .s { color:#a2a9b4; }
+    .list { border-color:#3a3f46; } .list button { border-color:#30343a; } .list button:hover { background:#26496f; }
+  }
+</style>
+</head>
+<body>
+  <header><img src="icon32.png" alt="">Download Manager</header>
+  <main>
+    <div class="row"><span><span class="dot" id="dot"></span><span id="state">Kontrol ediliyor…</span></span></div>
+    <label class="row"><span>İndirmeleri yakala</span><input type="checkbox" id="enabled"></label>
+    <h2 id="mediaHead" hidden>Bu sayfada yakalanan medya</h2>
+    <div class="list" id="media"></div>
+    <button class="wide" id="page">Bu sayfadaki videoyu indir</button>
+    <div class="list" id="formats" style="margin-top:6px"></div>
+    <button class="wide" id="show">Uygulamayı göster</button>
+    <div class="hint" id="hint"></div>
+  </main>
+<script src="popup.js"></script>
+</body>
+</html>

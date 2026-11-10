@@ -1,0 +1,5 @@
+/target/
+/dist/
+/installer/out/
+/e2e/node_modules/
+*.pem

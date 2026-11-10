@@ -1,0 +1,32 @@
+[package]
+name = "download-manager"
+version = "2.1.0"
+edition = "2021"
+
+[[bin]]
+name = "DownloadManager"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "io-util", "net"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", features = ["stream"] }
+axum = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = "0.3"
+percent-encoding = "2"
+tao = "0.30"
+wry = "0.47"
+tray-icon = "0.19"
+rfd = "0.15"
+
+[build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

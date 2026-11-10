@@ -1,0 +1,37 @@
+DOWNLOAD MANAGER 2.0 - TARAYICI EKLENTISI KURULUMU
+===================================================
+
+Uygulama kuruldu. Tarayici indirmelerinin yakalanmasi icin eklentiyi bir kez elle yuklemeniz gerekir
+(Chrome ve Edge, magaza disi eklentilerin otomatik kurulmasina izin vermez):
+
+1. Chrome'da  chrome://extensions   Edge'de  edge://extensions   adresini acin.
+2. "Gelistirici modu"nu acin.
+3. "Paketlenmemis oge yukle"ye tiklayin ve su klasoru secin:
+
+      (kurulum klasoru)\extension
+
+   Varsayilan kurulumda:  %LOCALAPPDATA%\Programs\Download Manager\extension
+
+Bu klasoru silmeyin; tarayici eklentiyi buradan calistirir.
+
+
+NELER YAPAR?
+------------
+- Indirme yakalama: Uygulama acikken tarayicida baslayan 1 MB'tan buyuk her indirme uygulamaya aktarilir.
+  Dosya 32 baglantiya kadar dinamik parcalara bolunur; biten baglanti en buyuk kalan parcanin yarisini devralir.
+- Video dugmesi: YouTube ve video oynatan diger sitelerde oynaticinin sag ustunde "Bu videoyu indir" cikar.
+- Medya yakalayici: Sayfanin yukledigi video/ses dosyalari ve HLS/DASH akislari eklenti simgesinde listelenir.
+- Adres yenileme: Yarim kalan bir indirmenin baglantisi gecersiz olduysa indirmeye sag tiklayip
+  "Indirme adresini yenile"yi secin; kaynak sayfa acilir, indirmeyi yeniden baslatinca kaldigi yerden devam eder.
+- Kuyruk ve hiz siniri: Secenekler'den ayni anda kac indirme calisacagini ve toplam hiz sinirini ayarlayin.
+- Pencereyi kapatinca uygulama sistem tepsisinde calismaya devam eder. Tamamen kapatmak icin tepsi
+  simgesine sag tiklayip "Cikis"i secin.
+
+
+NOTLAR
+------
+- YouTube icin yt-dlp, bilgisayarda kurulu Node.js'i kullanir (https://nodejs.org). Node.js yoksa bazi
+  videolarda kalite secenekleri azalabilir ya da liste alinamayabilir.
+- Pencere icin Microsoft Edge WebView2 gerekir (Windows 11'de ve guncel Windows 10'da hazir gelir).
+- Sadece hakkiniz olan icerikleri indirin.
+- Yerel API yalnizca 127.0.0.1:52931 adresinden dinler; diger web siteleri indirme baslatamaz.
