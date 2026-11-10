@@ -1,6 +1,6 @@
 ﻿; Inno Setup script: ISCC.exe installer\setup.iss  (run from the project root after `cargo build --release`)
 #define AppName "Download Manager"
-#define AppVersion "2.1.0"
+#define AppVersion "2.2.0"
 #define AppExe "DownloadManager.exe"
 
 [Setup]

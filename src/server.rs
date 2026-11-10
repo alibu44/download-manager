@@ -26,6 +26,8 @@ pub struct AppState {
     pub manager: Arc<Manager>,
     pub on_show: Callback,
     pub on_quit: Callback,
+    /// Origin of an extension waiting for the user to allow it.
+    pub pending_pair: Arc<std::sync::Mutex<Option<String>>>,
 }
 
 fn host_ok(h: &HeaderMap) -> bool {
@@ -34,9 +36,28 @@ fn host_ok(h: &HeaderMap) -> bool {
     host == format!("127.0.0.1:{PORT}") || host == format!("localhost:{PORT}")
 }
 
-fn origin_ok(h: &HeaderMap) -> bool {
+#[derive(PartialEq)]
+enum Caller {
+    /// The app's own window.
+    App,
+    /// A browser extension the user has allowed (built-in ID or paired).
+    Extension,
+    /// An extension that is not paired yet: may only ask to be paired.
+    Unpaired(String),
+    Other,
+}
+
+fn caller(h: &HeaderMap, m: &Manager) -> Caller {
     let o = h.get(header::ORIGIN).and_then(|v| v.to_str().ok()).unwrap_or("");
-    o == format!("http://127.0.0.1:{PORT}") || o == format!("http://localhost:{PORT}") || o == format!("chrome-extension://{EXTENSION_ID}")
+    if o == format!("http://127.0.0.1:{PORT}") || o == format!("http://localhost:{PORT}") { return Caller::App; }
+    let ext = o.strip_prefix("chrome-extension://").or_else(|| o.strip_prefix("moz-extension://"));
+    match ext {
+        // Store builds get a different ID per store, and Firefox a random one per install:
+        // those are accepted only after the user confirms the pairing in the app window.
+        Some(id) if id == EXTENSION_ID || m.settings().extension_origins.iter().any(|x| x == o) => Caller::Extension,
+        Some(id) if !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') => Caller::Unpaired(o.to_owned()),
+        _ => Caller::Other,
+    }
 }
 
 fn reply(code: StatusCode, body: Value) -> Response {
@@ -49,6 +70,7 @@ async fn api_get(State(st): State<AppState>, Path(name): Path<String>, h: Header
         "ping" => reply(StatusCode::OK, json!({ "app": "download-manager", "version": VERSION })),
         "list" => reply(StatusCode::OK, json!({ "items": st.manager.list() })),
         "settings" => reply(StatusCode::OK, json!(st.manager.settings())),
+        "pairing" => reply(StatusCode::OK, json!({ "origin": *st.pending_pair.lock().unwrap() })),
         _ => reply(StatusCode::NOT_FOUND, json!({ "error": "not found" })),
     }
 }
@@ -56,13 +78,35 @@ async fn api_get(State(st): State<AppState>, Path(name): Path<String>, h: Header
 async fn api_post(State(st): State<AppState>, Path(name): Path<String>, h: HeaderMap, body: Bytes) -> Response {
     // Only the app's own page and our extension may change anything;
     // other web pages cannot forge the Origin header.
-    if !host_ok(&h) || !origin_ok(&h) { return reply(StatusCode::FORBIDDEN, json!({ "error": "forbidden" })); }
-    let b: Value = if body.is_empty() { json!({}) } else {
+    if !host_ok(&h) { return reply(StatusCode::FORBIDDEN, json!({ "error": "forbidden" })); }
+    let who = caller(&h, &st.manager);
+    if name == "pair" {
+        return match who {
+            Caller::App | Caller::Extension => reply(StatusCode::OK, json!({ "paired": true })),
+            Caller::Unpaired(origin) => {
+                *st.pending_pair.lock().unwrap() = Some(origin);
+                (st.on_show)();
+                reply(StatusCode::OK, json!({ "paired": false }))
+            }
+            Caller::Other => reply(StatusCode::FORBIDDEN, json!({ "error": "forbidden" })),
+        };
+    }
+    if who != Caller::App && who != Caller::Extension { return reply(StatusCode::FORBIDDEN, json!({ "error": "forbidden" })); }
+    // These decide what gets downloaded where, so only the app's own window may call them:
+    // an extension must not be able to approve its own downloads or pairing.
+    if who != Caller::App && matches!(name.as_str(), "confirm" | "pairok" | "settings" | "choosefolder" | "quit") {
+        return reply(StatusCode::FORBIDDEN, json!({ "error": "forbidden" }));
+    }
+    let mut b: Value = if body.is_empty() { json!({}) } else {
         match serde_json::from_slice(&body) {
             Ok(v) => v,
             Err(e) => return reply(StatusCode::BAD_REQUEST, json!({ "error": e.to_string() })),
         }
     };
+    // Nothing a browser hands over starts without the confirmation dialog, whatever the extension sent.
+    if who == Caller::Extension && name == "add" && b["format"].is_null() {
+        if let Some(o) = b.as_object_mut() { o.insert("ask".into(), json!(true)); }
+    }
     match route(&st, &name, &b).await {
         Ok(v) => reply(StatusCode::OK, v),
         Err(e) => reply(StatusCode::BAD_REQUEST, json!({ "error": e })),
@@ -96,6 +140,11 @@ async fn route(st: &AppState, name: &str, b: &Value) -> Result<Value, String> {
             })?;
             if b["show"].as_bool() == Some(true) || b["ask"].as_bool() == Some(true) { (st.on_show)(); }
             Ok(json!({ "id": id }))
+        }
+        "pairok" => {
+            let origin = st.pending_pair.lock().unwrap().take();
+            if let (Some(o), Some(true)) = (origin, b["allow"].as_bool()) { m.allow_origin(&o); }
+            Ok(json!({ "ok": true }))
         }
         "confirm" => {
             m.confirm(&s("id"), &s("fileName"), &s("folder"), b["start"].as_bool() == Some(true));

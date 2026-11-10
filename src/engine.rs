@@ -195,13 +195,15 @@ pub struct Settings {
     pub speed_limit: u64,
     /// Show the "download file info" dialog before a captured download starts.
     pub ask_before: bool,
+    /// Extension origins (store builds, Firefox) the user allowed in the pairing dialog.
+    pub extension_origins: Vec<String>,
     pub v: u32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings { folder: home_dir().join("Downloads").to_string_lossy().into_owned(), connections: 16,
-                   max_active: 4, speed_limit: 0, ask_before: true, v: 2 }
+                   max_active: 4, speed_limit: 0, ask_before: true, extension_origins: Vec::new(), v: 2 }
     }
 }
 
@@ -302,6 +304,12 @@ impl Manager {
     }
 
     pub fn settings(&self) -> Settings { self.settings.lock().unwrap().clone() }
+
+    pub fn allow_origin(&self, origin: &str) {
+        let mut s = self.settings.lock().unwrap();
+        if !s.extension_origins.iter().any(|o| o == origin) { s.extension_origins.push(origin.to_owned()); }
+        let _ = std::fs::write(app_dir().join("settings.json"), serde_json::to_vec(&*s).unwrap_or_default());
+    }
 
     pub fn save_settings(&self, new: &Value) -> Settings {
         let mut s = self.settings.lock().unwrap();

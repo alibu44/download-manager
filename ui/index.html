@@ -215,6 +215,17 @@
     </div>
   </form></dialog>
 
+  <!-- Pairing: a browser extension the app has not seen before asks for access -->
+  <dialog id="pairDlg"><form method="dialog">
+    <div class="dtitle"><span>Tarayıcı eklentisi izni</span><button type="button" data-pair="no">&#x2715;</button></div>
+    <div class="dbody">
+      <div>Bir tarayıcı eklentisi Download Manager'a indirme göndermek istiyor:</div>
+      <div id="pairOrigin" style="margin:8px 0;user-select:text;font-weight:600;word-break:break-all"></div>
+      <div style="color:var(--muted)">Yalnızca az önce kendiniz kurduğunuz Download Manager eklentisiyse izin verin.</div>
+      <div class="actions"><button class="btn def" type="button" data-pair="yes">İzin ver</button><button class="btn" type="button" data-pair="no">Reddet</button></div>
+    </div>
+  </form></dialog>
+
   <!-- Options -->
   <dialog id="optDlg"><form method="dialog">
     <div class="dtitle"><span>Seçenekler</span><button value="cancel">&#x2715;</button></div>
@@ -380,8 +391,24 @@ async function refresh() {
     hits = hits.map((h) => downloads.find((d) => d.id === h.id)).filter(Boolean);
     renderCats(); render();
     askNext();
+    pairNext();
   } catch { setStatus('Uygulamaya bağlanılamadı'); }
 }
+
+/* ---------- pairing with a browser extension ---------- */
+async function pairNext() {
+  if ($('pairDlg').open) return;
+  const { origin } = await api('pairing').catch(() => ({}));
+  if (!origin) return;
+  $('pairOrigin').textContent = origin;
+  $('pairDlg').showModal();
+}
+async function answerPair(allow) {
+  await api('pairok', { allow }).catch((e) => msg(e.message));
+  $('pairDlg').close();
+}
+$('pairDlg').addEventListener('click', (e) => { const b = e.target.closest('[data-pair]'); if (b) answerPair(b.dataset.pair === 'yes'); });
+$('pairDlg').addEventListener('cancel', (e) => { e.preventDefault(); answerPair(false); });
 
 /* ---------- confirmation before a captured download ---------- */
 let asking = null; // id of the download the dialog is showing

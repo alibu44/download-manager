@@ -4,6 +4,10 @@
   window.__dmLoaded = true;
 
   const YT = /(^|\.)youtube\.com$/.test(location.hostname);
+  // The Chrome Web Store and Edge Add-ons do not accept extensions that download from YouTube;
+  // tools/paketle.ps1 sets this to true for those two packages.
+  const NO_YOUTUBE = false;
+  if (NO_YOUTUBE && YT) return;
   const cache = new Map(); // videoUrl -> formats
   let host; let root; let currentUrl = '';
 

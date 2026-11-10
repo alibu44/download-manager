@@ -3,3 +3,4 @@
 /installer/out/
 /e2e/node_modules/
 *.pem
+/store/

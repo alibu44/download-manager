@@ -4,6 +4,8 @@
 const API = 'http://127.0.0.1:52931/api/';
 const passThrough = new Set(); // URLs we deliberately let the browser download
 const SMALL = 1024 * 1024; // files below this finish faster in the browser than a hand-off takes
+// Set to true by tools/paketle.ps1 for the Chrome Web Store / Edge Add-ons packages (store policy).
+const NO_YOUTUBE = false;
 
 async function getEnabled() {
   const { enabled = true } = await chrome.storage.local.get('enabled');
@@ -19,11 +21,26 @@ async function appAlive() {
   }
 }
 
+// Store builds and Firefox have an ID the app does not know in advance: the app asks the user
+// once ("allow this browser extension?") and remembers the answer. Returns whether we are allowed.
+async function paired() {
+  try {
+    const r = await fetch(API + 'pair', { method: 'POST', signal: AbortSignal.timeout(1500) });
+    return r.ok && (await r.json()).paired === true;
+  } catch {
+    return false;
+  }
+}
+
 async function post(path, body) {
   const r = await fetch(API + path, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const j = await r.json().catch(() => ({}));
+  if (r.status === 403) {
+    await paired(); // makes the app show its pairing dialog
+    throw new Error('Download Manager penceresinde bu eklentiye izin verin, sonra tekrar deneyin.');
+  }
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
   return j;
 }
@@ -55,6 +72,7 @@ chrome.downloads.onCreated.addListener(async (item) => {
   if (item.state !== 'in_progress') return; // restored history entry or already finished
   if (item.totalBytes > 0 && item.totalBytes < SMALL) return;
   if (!(await getEnabled()) || !(await appAlive())) return; // app closed: let the browser download
+  if (!(await paired())) return; // not allowed by the app yet: the browser keeps its download
 
   try {
     await chrome.downloads.cancel(item.id);
@@ -148,11 +166,19 @@ async function grab(m, tab) {
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     try {
-      if (msg.type === 'status') return reply({ ok: true, alive: await appAlive(), enabled: await getEnabled() });
+      if (msg.type === 'status') {
+        const alive = await appAlive();
+        return reply({ ok: true, alive, enabled: await getEnabled(), paired: alive && await paired() });
+      }
       if (msg.type === 'setEnabled') { await chrome.storage.local.set({ enabled: !!msg.enabled }); return reply({ ok: true }); }
       if (msg.type === 'media') return reply({ ok: true, data: await mediaFor(msg.tabId ?? sender.tab?.id) });
       if (!(await appAlive())) return reply({ ok: false, error: 'app-offline' });
-      if (msg.type === 'formats') return reply({ ok: true, data: await post('formats', { url: msg.url }) });
+      if (msg.type === 'formats') {
+        if (NO_YOUTUBE && /^https?:\/\/([^/]+\.)?(youtube\.com|youtu\.be)\//i.test(msg.url)) {
+          return reply({ ok: false, error: 'Mağaza sürümü YouTube videolarını indirmez (mağaza kuralı).' });
+        }
+        return reply({ ok: true, data: await post('formats', { url: msg.url }) });
+      }
       if (msg.type === 'addVideo') {
         return reply({ ok: true, data: await post('add', { url: msg.url, title: msg.title, description: msg.format.label, format: msg.format, referer: msg.referer || '', userAgent: navigator.userAgent }) });
       }

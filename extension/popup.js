@@ -8,6 +8,7 @@ const fmtSize = (b) => {
   return (i ? b.toFixed(1) : b) + ' ' + u[i];
 };
 const hint = (t) => { $('hint').textContent = t; };
+const DOWNLOAD_URL = 'https://github.com/alibu44/download-manager/releases/latest';
 
 (async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -18,9 +19,15 @@ const hint = (t) => { $('hint').textContent = t; };
   $('state').textContent = alive ? 'Uygulama çalışıyor' : 'Uygulama kapalı';
   $('show').disabled = !alive;
   $('page').disabled = !alive || !/^https?:/i.test(tab?.url || '');
-  hint(alive
-    ? 'Tarayıcıda başlayan indirmeler uygulamaya aktarılır. Videoların üzerinde "Bu videoyu indir" düğmesi çıkar.'
-    : 'DownloadManager.exe kapalıyken indirmeler tarayıcıda normal şekilde yapılır.');
+  if (!alive) {
+    // The extension is only the browser half: the downloads are done by the desktop app.
+    $('hint').innerHTML = 'Uygulama çalışmıyor ya da kurulu değil; indirmeler tarayıcıda normal şekilde yapılır. '
+      + `Windows uygulamasını <a href="${DOWNLOAD_URL}" target="_blank" rel="noopener">buradan indirin</a>.`;
+  } else if (!r.paired) {
+    hint('Download Manager penceresinde bu eklentiye izin vermeniz gerekiyor (bir kez sorulur).');
+  } else {
+    hint('Tarayıcıda başlayan indirmeler önce uygulamada onayınıza sunulur. Videoların üzerinde "Bu videoyu indir" düğmesi çıkar.');
+  }
 
   const media = (await send({ type: 'media', tabId: tab?.id })).data || [];
   $('mediaHead').hidden = !media.length;

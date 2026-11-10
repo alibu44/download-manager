@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Download Manager Entegrasyonu",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Tarayıcı indirmelerini Download Manager uygulamasına gönderir, sayfalardaki video/ses akışlarını yakalar ve videolarda indirme düğmesi gösterir.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzJvtXMdXwmjPY91NvdhVjG4av2FdWnHhkHapuBAoko4xA68NDcJ+uwQ8yJ6kBj9r3v2NrEhzv10D3nRCYTe+zTuWhiSNa4QV4W5TJXvccXjjgaJ5PdXBpk1M9M1Fayl8U4pjttwVM6k8D4nAWks31fsDJY5wz8hxBaclsq4Dx7MoFuLVpC5G+ntWrV7EoXKltSTWIoY2h4gpB06Y/KmDsfPSRejhLa/eaGG6zlYsoB3n/VSyzMzmO2NTlewm1ljC5ajE27EO3rVeJ5/a8Ff/czh25y6XWFJeRudapnzCvz9X4TVAw9gJqH6/RHK7PLL5YnAnBNn06OE7eMFroCZ+1QIDAQAB",
   "permissions": [

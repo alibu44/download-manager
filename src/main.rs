@@ -93,6 +93,7 @@ fn main() {
         manager: manager.clone(),
         on_show: Arc::new(move || { let _ = p1.send_event(UserEvent::Show); }),
         on_quit: Arc::new(move || { let _ = p2.send_event(UserEvent::Quit); }),
+        pending_pair: Arc::default(),
     }));
 
     let window = WindowBuilder::new()
